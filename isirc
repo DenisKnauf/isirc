@@ -1,12 +1,11 @@
 #!/bin/sh
 
-QUITE=false
+PATH=/bin
+export PATH
+QUITE=${QUITE:-false}
 
 log() {
-	if [ "X$QUITE" != "Xtrue" ]
-	then
-		echo "$*"
-	fi
+	[ "X$QUITE" != "Xtrue" ] && echo "$*"
 }
 
 err() {
@@ -17,7 +16,6 @@ if [ "x${1}x" != "x-rx" ]
 then
 	exec </dev/console >/dev/console 2>&1
 	log "### ISIRD ###"
-	PATH=/bin
 	cd /
 
 	log " mount proc and sysfs and / as rw"
@@ -41,11 +39,8 @@ else
 	log " returned"
 fi
 
-log " detect cmdline options..."
 ROOT="$(cmdline -c root)"
-log "  root: #{ROOT}"
 FLAGS="$(cmdline -c rootflags)"
-log "  flags: ${FLAGS}"
 if cmdline -c ro
 then
 	FLAGS="${FLAGS},ro"
@@ -53,7 +48,6 @@ elif cmdline -c rw
 then
 	FLAGS="${FLAGS},rw"
 fi
-log "  flags: ${FLAGS}"
 FSTYPE="$(cmdline -c rootfstype)"
 FSTYPE="${FSTYPE:-auto}"
 log " umount sysfs"
@@ -66,25 +60,6 @@ then
 	exec sh
 fi
 
-if ! test -d /mnt/initrd || mkdir /mnt/initrd
-then
-	err "/initrd doesn't exist on root!"
-	exec sh
-fi
-
-log " Change to new root"
 cd /mnt
-if ! pivot_root . initrd
-then
-	err "Can't pivot root!"
-	cd /
-	exec sh
-fi
-
-log " OK :)"
-export LD_LIBRARY_PATH="/initrd/lib"
-LD_SO="${LD_LIBRARY_PATH}/ld-linux.so.2"
-${LD_SO} /initrd/bin/ls /mnt/dev/*
-echo 0x0100 > /initrd/proc/sys/kernel/real-root-dev
-${LD_SO} /initrd/bin/umount -n /initrd/proc
-exit 0
+log " Change to new root"
+exec switch_root /mnt /bin/sh
