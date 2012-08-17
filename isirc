@@ -3,6 +3,7 @@
 PATH=/bin
 export PATH
 QUITE=${QUITE:-false}
+NOSEC=false
 
 log() {
 	[ "X$QUITE" != "Xtrue" ] && echo "$*"
@@ -26,10 +27,15 @@ then
 	log " mdev"
 	mdev -s
 	log " activate volume groups"
-	vgscan --mknodes --ignorelockingfailure
-	vgchange --ignorelockingfailure -P -a y
+	lvm vgscan --mknodes --sysinit
+	lvm vgchange --sysinit -P -a y
 
-	if cmdline -c isirdsh
+	if cmdline -c NOSEC
+	then
+		NOSEC=true
+	fi
+
+	if [ Xtrue = "X$NOSEC" ] && cmdline -c isirdsh
 	then
 		log " start shell"
 		exec sh
@@ -42,11 +48,9 @@ fi
 ROOT="$(cmdline -c root)"
 FLAGS="$(cmdline -c rootflags)"
 if cmdline -c ro
-then
-	FLAGS="${FLAGS},ro"
+then FLAGS="${FLAGS},ro"
 elif cmdline -c rw
-then
-	FLAGS="${FLAGS},rw"
+then FLAGS="${FLAGS},rw"
 fi
 FSTYPE="$(cmdline -c rootfstype)"
 FSTYPE="${FSTYPE:-auto}"
@@ -57,9 +61,17 @@ log " mount ${ROOT} as ${FSTYPE} with ${FLAGS}"
 if ! mount -o "${FLAGS}" -t "${FSTYPE}" "${ROOT}" /mnt
 then
 	err "Can't mount root!"
+	[ Xtrue = "X$NOSEC" ] && exec sh
+fi
+
+# ISIRDSH -> shell for debugging, testing, what ever...
+if [ Xtrue = "X$NOSEC" ] && cmdline -c ISIRDSH
+then
 	exec sh
 fi
 
+INIT="$(cmdline -c init)"
+INIT="${INIT:-/sbin/init}"
 cd /mnt
 log " Change to new root"
-exec switch_root /mnt /bin/sh
+exec switch_root /mnt "$INIT"
